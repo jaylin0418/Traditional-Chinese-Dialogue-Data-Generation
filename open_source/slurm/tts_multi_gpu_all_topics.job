@@ -4,8 +4,8 @@
 #SBATCH -p normal
 #SBATCH --nodes=4
 #SBATCH --gpus-per-node=4
-#SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=12
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=6
 #SBATCH --mem=256G
 # NOTE: Partition 'normal' MaxTime is 1-00:00:00 on this cluster.
 # If TTS is not finished in one run, re-submit the same job; it will resume by skipping existing outputs.
@@ -18,7 +18,7 @@ set -euo pipefail
 # This job runs TTS using one SLURM task per GPU.
 # Each task picks a disjoint subset of topics (round-robin by rank across all nodes).
 
-REPO_DIR="$HOME/SpeechLab/synthetic_data_breezyvoice"
+REPO_DIR="$HOME/SpeechLab/open_source"
 CONFIG="$REPO_DIR/conf/base_v2_breezy.yaml"
 
 # Override via: sbatch --export=ALL,RUN_ROOT="/path" ...
@@ -45,10 +45,12 @@ echo "CONFIG=$CONFIG"
 echo "TOPICS=$TOPICS"
 echo "Progress: $RUN_ROOT/logs_tts/progress_all.tsv"
 
-srun python slurm/srun_tts_worker.py \
-  --config "$CONFIG" \
-  --run-root "$RUN_ROOT" \
-  --topics "$TOPICS"
+export SYN_CONFIG="$CONFIG" SYN_RUN_ROOT="$RUN_ROOT" SYN_TOPICS="$TOPICS"
+srun --kill-on-bad-exit=0 bash -c \
+  'export CUDA_VISIBLE_DEVICES=$((SLURM_LOCALID / 2)) && exec python slurm/srun_tts_worker.py \
+    --config "$SYN_CONFIG" \
+    --run-root "$SYN_RUN_ROOT" \
+    --topics "$SYN_TOPICS"'
 
 if [[ "$DO_EXPORT" == "1" ]]; then
   python push_dataset_to_hub.py --config "$CONFIG" --run-root "$RUN_ROOT" --export --topics "$TOPICS" --no-push

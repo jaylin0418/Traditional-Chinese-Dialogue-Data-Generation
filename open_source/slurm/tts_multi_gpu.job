@@ -18,7 +18,7 @@ set -euo pipefail
 # This job runs TTS-only using one SLURM task per GPU.
 # Each task picks a disjoint subset of topics (round-robin by rank across all nodes).
 
-REPO_DIR="$HOME/SpeechLab/synthetic_data_breezyvoice"
+REPO_DIR="$HOME/SpeechLab/open_source"
 CONFIG="$REPO_DIR/conf/base_v2_breezy.yaml"
 
 # Your dataset/run root should contain:
@@ -54,7 +54,7 @@ echo "TOPICS=$TOPICS"
 echo "Progress: $RUN_ROOT/logs_tts/progress_all.tsv"
 
 # srun will launch one task per GPU (per node). Each task gets CUDA_VISIBLE_DEVICES set by SLURM.
-srun python slurm/srun_tts_worker.py \
+srun --kill-on-bad-exit=0 --gpus-per-task=1 --gpu-bind=single:1 python slurm/srun_tts_worker.py \
   --config "$CONFIG" \
   --run-root "$RUN_ROOT" \
   --topics "$TOPICS"

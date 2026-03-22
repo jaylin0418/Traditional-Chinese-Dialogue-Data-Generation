@@ -576,18 +576,45 @@ Each emotion has **3 text variants** per speaker to avoid repetitive reference a
 
 ## ElevenLabs speaker roster
 
-| Key in filenames | Display name | Gender |
-|-----------------|--------------|--------|
-| `ranbir` | Ranbir — Calm, Steady and Clear | Male |
-| `roger` | Roger — Laid-Back, Casual, Resonant | Male |
-| `charlie` | Charlie — Deep, Confident, Energetic | Male |
-| `george` | George — Warm, Captivating Storyteller | Male |
-| `callum` | Callum — Husky Trickster | Male |
-| `river` | River — Relaxed, Neutral, Informative | Male |
-| `harry` | Harry — Fierce Warrior | Male |
-| `bella` | Bella — Professional, Bright, Warm | Female |
-| `sarah` | Sarah — Mature, Reassuring, Confident | Female |
-| `laura` | Laura — Enthusiast, Quirky Attitude | Female |
+| Key in filenames | Display name | Gender | Notes |
+|-----------------|--------------|--------|-------|
+| `ranbir` | Ranbir — Calm, Steady and Clear | Male | |
+| `roger` | Roger — Laid-Back, Casual, Resonant | Male | |
+| `charlie` | Charlie — Deep, Confident, Energetic | Male | |
+| `george` | George — Warm, Captivating Storyteller | Male | |
+| `callum` | Callum — Husky Trickster | Male | |
+| `river` | River — Relaxed, Neutral, Informative | Female | |
+| `harry` | Harry — Fierce Warrior | Male | |
+| `bella` | Bella — Professional, Bright, Warm | Female | Excluded from auto-selection (`_EXCLUDED_SPEAKERS`) — strong Mainland Chinese accent |
+| `sarah` | Sarah — Mature, Reassuring, Confident | Female | |
+| `laura` | Laura — Enthusiast, Quirky Attitude | Female | |
+
+To exclude additional speakers from random selection, add their key to `_EXCLUDED_SPEAKERS` in `open_source/syn_ver2_breezy.py`.
+
+---
+
+## TTS pipeline notes
+
+### Traditional Chinese preservation
+
+WeTextProcessing's `ZhNormalizer` (used by BreezyVoice's `CosyVoiceFrontEnd`) internally operates on Simplified Chinese, causing Traditional Chinese input to be converted to Simplified before synthesis. A post-normalisation OpenCC `s2twp` conversion step is applied in `tts_model/BreezyVoice/single_inference.py` to restore Traditional Chinese (Taiwan standard) after text normalisation.
+
+### Reference audio length limit
+
+The BreezyVoice speech tokenizer (`speech_tokenizer_v1.onnx`) has a maximum input length of ~1 500 frames. Reference audio clips longer than ~15 s trigger an ONNX broadcast error at inference time. All speaker prompt audio is automatically truncated to 15 s (240 000 samples @ 16 kHz) before being passed to the model.
+
+### Emotion tag stripping
+
+Dialogue `.txt` files produced by the LLM may contain emotion tags in two positions:
+
+- **Leading** (canonical): `(emotion:frustration) 我真的很不開心`
+- **Trailing** (variant): `我真的很不開心 (frustration)`
+
+Both forms are stripped from `content_to_synthesize` before TTS synthesis. Leading `(emotion:xxx)` tags are stripped by `strip_leading_emotion_tag`; trailing bare/full tags (e.g. `(curiosity)`, `(emotion:happy)`) are stripped by a regex in `sanitize_tts_text` in `open_source/syn_ver2_breezy.py`.
+
+### SLURM multi-GPU configuration
+
+The `slurm/tts_multi_gpu_all_topics.job` script runs **2 SLURM tasks per GPU** (32 tasks total across 4 nodes × 4 GPUs). Each task's `CUDA_VISIBLE_DEVICES` is set via `$((SLURM_LOCALID / 2))` inside a `bash -c` wrapper, since `--gpus-per-task` / `--gpu-bind` do not propagate correctly in all cluster configurations. `--kill-on-bad-exit=0` prevents early-finishing tasks from cancelling remaining work.
 
 ---
 

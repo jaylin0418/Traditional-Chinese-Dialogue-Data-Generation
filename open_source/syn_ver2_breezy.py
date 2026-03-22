@@ -962,6 +962,8 @@ def sanitize_tts_text(text: str) -> str:
         return "".join(m.group(0).split())
 
     s = _PAT_SPACED_LETTERS.sub(_collapse, s)
+    # Strip trailing bare/full emotion tags like "(curiosity)" or "(emotion:happy)"
+    s = re.sub(r"\s*\(\s*(?:emotion\s*[:=]\s*)?[A-Za-z_\-]+\s*\)\s*$", "", s)
     return s.strip()
 
 
@@ -1294,14 +1296,17 @@ def _load_emotion_reference_pool(
     )
 
 
+_EXCLUDED_SPEAKERS = {"bella"}  # speakers with undesired accent/style
+
 def _pick_emotion_speakers(pool: EmotionRefPool) -> Tuple[str, str]:
     """Pick two different speaker names for User (A) and Agent (B)."""
-    if len(pool.speakers) < 2:
+    available = [s for s in pool.speakers if s not in _EXCLUDED_SPEAKERS]
+    if len(available) < 2:
         raise ValueError(
-            f"eleven_lab_emotion reference pool needs >=2 distinct speakers, found: {pool.speakers}"
+            f"eleven_lab_emotion reference pool needs >=2 distinct speakers after exclusions, found: {available}"
         )
-    spk_a = random.choice(pool.speakers)
-    remaining = [s for s in pool.speakers if s != spk_a]
+    spk_a = random.choice(available)
+    remaining = [s for s in available if s != spk_a]
     spk_b = random.choice(remaining)
     return spk_a, spk_b
 
@@ -3692,9 +3697,13 @@ def tts_batch(cfg):
         except Exception:
             filter_enabled = False
 
-    all_txt_files = sorted(txt_folder.glob("*.txt"))
+    def _num_sort_key(p):
+        idx = _extract_scenario_index_from_name(p.name)
+        return (idx is None, idx or 10**9)
+
+    all_txt_files = sorted(txt_folder.glob("*.txt"), key=_num_sort_key)
     txt_files = (
-        sorted(_filter_files_by_current_scenarios(cfg, all_txt_files))
+        sorted(_filter_files_by_current_scenarios(cfg, all_txt_files), key=_num_sort_key)
         if filter_enabled
         else all_txt_files
     )

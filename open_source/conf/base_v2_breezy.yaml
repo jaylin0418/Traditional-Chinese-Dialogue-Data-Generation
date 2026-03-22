@@ -564,6 +564,7 @@ judge:
 # STAGE 6: TEXT-TO-SPEECH GENERATION
 # ═══════════════════════════════════════════════════════════════════════════
 tts:
+  filter_by_current_scenarios: false  # Process all txt files, not just the last batch
   load_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/filler
   # When huggingface.enabled=true, tts_batch enforces ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/wav
   wav_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/wav
