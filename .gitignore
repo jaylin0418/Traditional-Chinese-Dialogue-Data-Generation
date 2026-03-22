@@ -1,0 +1,30 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+**/.env
+
+# ── Large data / models (download separately, see README) ────────────────────
+tts_model/BreezyVoice/*
+!tts_model/BreezyVoice/.gitkeep
+*.wav
+*.mp3
+*.onnx
+ref_audio/cv-corpus-*/
+ref_audio/eleven_lab_emotion/male/
+ref_audio/eleven_lab_emotion/female/
+ref_audio/eleven_lab_emotion/transcriptions.json
+synthetic_data_*/
+synthetic_data_ver*/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+.DS_Store
+*.log
+.hydra/
+outputs/

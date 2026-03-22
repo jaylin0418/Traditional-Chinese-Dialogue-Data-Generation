@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH -J breezy_export_hf
+#SBATCH -A MST115022
+#SBATCH -p normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=02:00:00
+#SBATCH -o /work/%u/slurm_logs/export_%j.out
+#SBATCH -e /work/%u/slurm_logs/export_%j.err
+
+set -euo pipefail
+
+# Export a combined HuggingFace dataset from an existing run_root.
+# This does NOT run TTS and does NOT push to hub.
+
+REPO_DIR="$HOME/SpeechLab/synthetic_data_breezyvoice"
+CONFIG="$REPO_DIR/conf/base_v2_breezy.yaml"
+
+# Override via: sbatch --export=ALL,RUN_ROOT="/path" ...
+RUN_ROOT="${RUN_ROOT:-/work/jaylin0418/synthetic_dataset_TC}"
+
+# "auto" scans all topics under {data_root}/{mode_name} that already have wav outputs.
+# Override via: sbatch --export=ALL,TOPICS="Art,Books" ...
+TOPICS="${TOPICS:-auto}"
+
+# Optional: set to 1 to push after export (default: export only).
+# Requires HuggingFace auth (e.g., HUGGINGFACE_HUB_TOKEN or huggingface-cli login).
+DO_PUSH="${DO_PUSH:-0}"
+
+mkdir -p "/work/$USER/slurm_logs"
+
+cd "$REPO_DIR"
+
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate breezyvoice_py310
+
+echo "RUN_ROOT=$RUN_ROOT"
+echo "CONFIG=$CONFIG"
+echo "TOPICS=$TOPICS"
+
+PUSH_ARGS="--no-push"
+if [[ "$DO_PUSH" == "1" ]]; then
+	PUSH_ARGS=""
+fi
+
+python push_dataset_to_hub.py --config "$CONFIG" --run-root "$RUN_ROOT" --export --topics "$TOPICS" $PUSH_ARGS
+
+echo "DONE"

@@ -1,0 +1,6 @@
+name: breezyvoice_py310
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+prefix: /home/jaylin0418/miniconda3/envs/breezyvoice_py310

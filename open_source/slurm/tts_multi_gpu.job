@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH -J breezy_tts
+#SBATCH -A MST115022
+#SBATCH -p normal
+#SBATCH --nodes=4
+#SBATCH --gpus-per-node=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=256G
+# NOTE: Partition 'normal' MaxTime is 1-00:00:00 on this cluster.
+# If TTS is not finished in one run, re-submit the same job; it will resume by skipping existing outputs.
+#SBATCH --time=1-00:00:00
+#SBATCH -o /work/%u/slurm_logs/tts_%j.out
+#SBATCH -e /work/%u/slurm_logs/tts_%j.err
+
+set -euo pipefail
+
+# This job runs TTS-only using one SLURM task per GPU.
+# Each task picks a disjoint subset of topics (round-robin by rank across all nodes).
+
+REPO_DIR="$HOME/SpeechLab/synthetic_data_breezyvoice"
+CONFIG="$REPO_DIR/conf/base_v2_breezy.yaml"
+
+# Your dataset/run root should contain:
+#   $RUN_ROOT/TEST_syn_data/normal/<topic>/txt/dialogue/*.txt
+
+# Override via: sbatch --export=ALL,RUN_ROOT="/path" ...
+RUN_ROOT="${RUN_ROOT:-/work/jaylin0418/synthetic_dataset_TC}"
+
+
+# Optional: limit to a few topics for a dry run.
+# Use "auto" to scan all topics under {data_root}/{mode_name} that already have wav outputs.
+# Override via: sbatch --export=ALL,TOPICS="Art,Books,Cars" ...
+TOPICS="${TOPICS:-Art,Books,Cars}"
+
+# Optional: set to 0 to run TTS only (recommended for batch runs; export once at the end).
+# Override via: sbatch --export=ALL,DO_EXPORT=0 ...
+DO_EXPORT="${DO_EXPORT:-1}"
+
+mkdir -p "/work/$USER/slurm_logs"
+
+cd "$REPO_DIR"
+
+# Activate conda env that has BreezyVoice deps.
+# Adjust if your conda install path/env name differs.
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate breezyvoice_py310
+
+python -c "import torch, torchaudio; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__)"
+
+echo "RUN_ROOT=$RUN_ROOT"
+echo "CONFIG=$CONFIG"
+echo "TOPICS=$TOPICS"
+echo "Progress: $RUN_ROOT/logs_tts/progress_all.tsv"
+
+# srun will launch one task per GPU (per node). Each task gets CUDA_VISIBLE_DEVICES set by SLURM.
+srun python slurm/srun_tts_worker.py \
+  --config "$CONFIG" \
+  --run-root "$RUN_ROOT" \
+  --topics "$TOPICS"
+
+if [[ "$DO_EXPORT" == "1" ]]; then
+  # After TTS finishes, export a combined HF dataset (local only; no push).
+  python push_dataset_to_hub.py --config "$CONFIG" --run-root "$RUN_ROOT" --export --topics "$TOPICS" --no-push
+  echo "Exported dataset (local): $RUN_ROOT/TEST_syn_data/huggingface_dataset/dataset"
+else
+  echo "DO_EXPORT=0; skipping export step."
+fi
+
+echo "DONE"
