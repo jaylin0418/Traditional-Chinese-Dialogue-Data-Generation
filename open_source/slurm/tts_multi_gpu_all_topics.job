@@ -46,7 +46,7 @@ echo "TOPICS=$TOPICS"
 echo "Progress: $RUN_ROOT/logs_tts/progress_all.tsv"
 
 export SYN_CONFIG="$CONFIG" SYN_RUN_ROOT="$RUN_ROOT" SYN_TOPICS="$TOPICS"
-srun --kill-on-bad-exit=0 bash -c \
+srun --kill-on-bad-exit=0 --wait=0 bash -c \
   'export CUDA_VISIBLE_DEVICES=$((SLURM_LOCALID / 2)) && exec python slurm/srun_tts_worker.py \
     --config "$SYN_CONFIG" \
     --run-root "$SYN_RUN_ROOT" \

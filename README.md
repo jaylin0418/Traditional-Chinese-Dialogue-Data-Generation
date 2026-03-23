@@ -1,17 +1,34 @@
-# SpeechLab — Synthetic Taiwanese Mandarin Dialogue Pipeline
+# Synthetic Taiwanese Mandarin Dialogue Pipeline
 
-End-to-end pipeline for generating **synthetic Taiwanese Mandarin (zh-TW) conversational dialogue**, synthesising it with BreezyVoice TTS, and exporting a structured HuggingFace dataset. Supports 40+ topics, dual-LLM dialogue generation, and optional per-turn emotion expression.
+End-to-end pipeline that generates **synthetic Taiwanese Mandarin (zh-TW) conversational dialogue**, synthesises it with BreezyVoice TTS, and exports a structured HuggingFace dataset. Supports 40+ topics, dual-LLM dialogue generation, and optional per-turn emotion expression.
+
+---
+
+## Pipeline Overview
 
 ```
-Scenario generation (LLM)
-       ↓
-Dialogue generation (dual-LLM: Llama-3.3-70B × GPT-4o-mini)
-       ↓
-Overlap & filler insertion
-       ↓
-TTS synthesis (BreezyVoice, multi-GPU)
-       ↓
-HuggingFace dataset export
+Topic input
+    │
+    ▼
+[Stage 1] Scenario generation          (GPT-4o-mini via OpenRouter)
+    │
+    ▼
+[Stage 2] System prompt generation     (GPT-4o-mini)
+    │
+    ▼
+[Stage 3] Dialogue generation          (Llama-3.3-70B  ×  GPT-4o-mini, dual-LLM)
+    │
+    ▼
+[Stage 4] Overlap insertion            (GPT-4o-mini)
+    │
+    ▼
+[Stage 5] Filler / backchannel insertion  (GPT-4o-mini)
+    │
+    ▼
+[Stage 6] TTS synthesis                (BreezyVoice, multi-GPU)
+    │
+    ▼
+[Stage 7] HuggingFace dataset export
 ```
 
 ---
@@ -19,11 +36,11 @@ HuggingFace dataset export
 ## Table of Contents
 
 1. [Repository layout](#repository-layout)
-2. [Files NOT included in this repo](#files-not-included-in-this-repo)
+2. [Prerequisites — files not in git](#prerequisites--files-not-in-git)
    - [BreezyVoice model checkpoints](#1-breezyvoice-model-checkpoints)
-   - [Common Voice zh-TW corpus](#2-common-voice-zh-tw-corpus-speaker-references-no-emotion-mode)
+   - [Common Voice zh-TW corpus](#2-common-voice-zh-tw-corpus-no-emotion-mode)
    - [ElevenLabs emotion reference audio](#3-elevenlabs-emotion-reference-audio-emotion-mode)
-3. [Reference audio data formats](#reference-audio-data-formats)
+3. [Reference audio formats](#reference-audio-formats)
 4. [Setup](#setup)
 5. [Configuration](#configuration)
 6. [Running the pipeline](#running-the-pipeline)
@@ -31,6 +48,8 @@ HuggingFace dataset export
 8. [Emotion mode vs. no-emotion mode](#emotion-mode-vs-no-emotion-mode)
 9. [Available emotions](#available-emotions-26)
 10. [ElevenLabs speaker roster](#elevenlabs-speaker-roster)
+11. [TTS pipeline notes](#tts-pipeline-notes)
+12. [Supported topics](#supported-topics-40)
 
 ---
 
@@ -38,28 +57,28 @@ HuggingFace dataset export
 
 ```
 SpeechLab/
-├── .env.example                         # Template for API keys
+├── .env.example                         # API key template
 ├── .gitignore
-├── README.md                            # This file
+├── README.md
 │
 ├── open_source/                         # Pipeline source code
 │   ├── conf/
-│   │   └── base_v2_breezy.yaml          # Central configuration
-│   ├── env/                             # Conda environment files & README
+│   │   └── base_v2_breezy.yaml          # Central configuration (all parameters)
+│   ├── env/                             # Conda environment files
 │   │   ├── README.md                    # Environment setup instructions
-│   │   ├── conda-linux-64.py310.lock    # Exact lock for Linux-64
+│   │   ├── conda-linux-64.py310.lock    # Exact reproducible lock (Linux-64)
 │   │   ├── environment.py310.from-history.yml
-│   │   └── smoke_test.sh
+│   │   └── smoke_test.sh                # Post-install validation
 │   ├── slurm/                           # SLURM job scripts (multi-GPU cluster)
 │   ├── syn_ver2_breezy.py               # Core pipeline engine (~4 k lines)
 │   ├── run_topic_txt.py                 # Single-topic text generation
-│   ├── run_topic_tts.py                 # Single-topic TTS
+│   ├── run_topic_tts.py                 # Single-topic TTS synthesis
 │   ├── run_multi_topic_txt_workers.py   # Parallel text generation
 │   ├── run_multi_topic_tts_workers.py   # Parallel TTS with GPU scheduling
-│   ├── push_dataset_to_hub.py           # Dataset export + Hub push
-│   ├── generate_txt.sh                  # Convenience wrapper — text stage
-│   ├── generate_tts.sh                  # Convenience wrapper — TTS stage
-│   ├── push_to_hf.sh                    # Convenience wrapper — HF export
+│   ├── push_dataset_to_hub.py           # Dataset export + HuggingFace Hub push
+│   ├── generate_txt.sh                  # Wrapper — text stage
+│   ├── generate_tts.sh                  # Wrapper — TTS stage
+│   ├── push_to_hf.sh                    # Wrapper — HF export
 │   └── requirements.txt
 │
 ├── tts_model/
@@ -78,89 +97,75 @@ SpeechLab/
     │       ├── validated.tsv            # Speaker metadata
     │       └── clips/                   # MP3 audio clips
     └── eleven_lab_emotion/
-        ├── batch_generate_emo_ref.py    # Script to generate all WAVs
+        ├── batch_generate_emo_ref.py    # Script to generate all 810 WAVs
         ├── generate_emo_ref.py          # Quick test / single-voice generation
-        ├── transcriptions.json          # ← generated by script (not in git)
-        ├── male/                        # ← generated WAVs (not in git)
-        └── female/                      # ← generated WAVs (not in git)
+        ├── transcriptions.json          # WAV path → spoken text (generated)
+        ├── male/                        # Generated emotion WAVs
+        └── female/                      # Generated emotion WAVs
 ```
 
 ---
 
-## Files NOT included in this repo
+## Prerequisites — files not in git
 
 The following must be obtained and placed at the paths shown **before running the pipeline**.
 
 ### 1. BreezyVoice model checkpoints
 
-The `tts_model/BreezyVoice/` directory contains the model code, but **weights are not committed**.
-
-Download the `MediaTek-Research/BreezyVoice-300M` model from HuggingFace and place all files under `tts_model/BreezyVoice/checkpoints/`:
+`tts_model/BreezyVoice/` contains model code, but weights are not committed. Download from HuggingFace:
 
 ```bash
-# Option A — HuggingFace CLI
 pip install huggingface_hub
 huggingface-cli download MediaTek-Research/BreezyVoice-300M \
     --local-dir tts_model/BreezyVoice/checkpoints
-
-# Option B — use the model's own download utility if provided
-cd tts_model/BreezyVoice
-python download_model.py   # if it exists in the repo
 ```
 
 Expected layout after download:
 
 ```
 tts_model/BreezyVoice/checkpoints/
-├── breezyvoice.pt          # or similar weight file(s)
+├── breezyvoice.pt
 ├── campplus.pt
 ├── flow.pt
 ├── hift.pt
 └── speech_tokenizer_v1_25hz.onnx
 ```
 
-> The exact filenames depend on the BreezyVoice release. Check `tts_model/BreezyVoice/README.md` for the authoritative list.
+> See `tts_model/BreezyVoice/README.md` for the authoritative file list.
 
 ---
 
-### 2. Common Voice zh-TW corpus (speaker references, no-emotion mode)
+### 2. Common Voice zh-TW corpus (no-emotion mode)
 
 Used as per-dialogue **speaker cloning references** when `dialogue.with_emotion: false`.
 
-**Download**
-
-1. Go to [https://commonvoice.mozilla.org/zh-TW/datasets](https://commonvoice.mozilla.org/zh-TW/datasets).
-2. Download **Common Voice Corpus 24.0** (or the version matching the path in your config).
+1. Go to https://commonvoice.mozilla.org/zh-TW/datasets
+2. Download **Common Voice Corpus 24.0**
 3. Extract and place at:
 
 ```
 ref_audio/
 └── cv-corpus-24.0-2025-12-05/
     └── zh-TW/
-        ├── validated.tsv    ← metadata file
-        └── clips/           ← audio clips directory
+        ├── validated.tsv
+        └── clips/
             ├── common_voice_zh-TW_31336427.mp3
-            ├── common_voice_zh-TW_31336428.mp3
             └── ...
 ```
 
-**TSV schema (`validated.tsv`)**
-
-The pipeline reads the following columns:
+**TSV schema (`validated.tsv`)** — columns read by the pipeline:
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `client_id` | string | Unique speaker hash |
-| `path` | string | Filename inside `clips/` (e.g. `common_voice_zh-TW_31336427.mp3`) |
-| `sentence` | string | Transcription text spoken in the clip |
-| `age` | string | Speaker age group (`teens`, `twenties`, `thirties`, …) |
+| `path` | string | Filename inside `clips/` |
+| `sentence` | string | Transcription text |
+| `age` | string | Age group (`teens`, `twenties`, `thirties`, …) |
 | `gender` | string | `male_masculine`, `female_feminine`, etc. |
 | `accents` | string | Regional accent tag (may be empty) |
 | `up_votes` | int | Community up-votes (quality signal) |
 
-The pipeline randomly selects one speaker per dialogue. Gender filtering is supported via config.
-
-**Config paths** — update these if you use a different corpus version:
+Update config paths if you use a different corpus version:
 
 ```yaml
 # open_source/conf/base_v2_breezy.yaml
@@ -175,38 +180,23 @@ tts:
 
 Used as per-turn **speaker cloning references** when `dialogue.with_emotion: true`. Each turn's emotion tag selects the matching reference WAV.
 
-**Structure**
-
-810 WAV files total: 26 emotions × 10 speakers × 3 text variants, plus 30 neutral fallbacks (10 speakers × 3 variants).
+**810 WAV files total**: 26 emotions × 10 speakers × 3 variants + 30 neutral fallbacks (10 speakers × 3 variants).
 
 ```
 ref_audio/eleven_lab_emotion/
-├── transcriptions.json       ← maps every WAV to its spoken text + emotion label
+├── transcriptions.json              # WAV path → spoken text + emotion label
 ├── male/
-│   ├── afraid_ranbir_1.wav
+│   ├── afraid_ranbir_1.wav          # {emotion}_{speaker}_{variant}.wav
 │   ├── afraid_ranbir_2.wav
 │   ├── afraid_ranbir_3.wav
-│   ├── happy_ranbir_1.wav
-│   │   ...                   ← {emotion}_{speaker}_{variant}.wav
-│   ├── ranbir_1.wav          ← neutral fallback: {speaker}_{variant}.wav
-│   ├── ranbir_2.wav
-│   └── ranbir_3.wav
+│   ├── ranbir_1.wav                 # neutral fallback: {speaker}_{variant}.wav
+│   └── ...
 └── female/
     ├── afraid_bella_1.wav
-    │   ...
-    └── laura_3.wav
+    └── ...
 ```
 
-**WAV file naming convention**
-
-| Pattern | Meaning |
-|---------|---------|
-| `{emotion}_{speaker}_{1\|2\|3}.wav` | Emotional reference (26 emotions, 3 variants) |
-| `{speaker}_{1\|2\|3}.wav` | Neutral fallback (used when no emotion match) |
-
-**`transcriptions.json` schema**
-
-Each key is the relative WAV path; each value is the full prompt string passed to ElevenLabs (used later as `speaker_prompt_text_transcription` in BreezyVoice):
+**`transcriptions.json` schema** — each key is a relative WAV path, each value is the ElevenLabs prompt:
 
 ```json
 {
@@ -216,18 +206,14 @@ Each key is the relative WAV path; each value is the full prompt string passed t
 }
 ```
 
-**How to generate**
-
-You need an ElevenLabs API key (set `ELEVENLABS_API_KEY` in `.env`). Then:
+**How to generate** — requires `ELEVENLABS_API_KEY` in `.env`:
 
 ```bash
 cd ref_audio/eleven_lab_emotion
 python batch_generate_emo_ref.py
 ```
 
-This calls the ElevenLabs `eleven_v3` model for each (emotion, speaker, variant) combination using a prompt like `[strong Taiwanese accent][{emotion}][enhancer1][enhancer2] {text}` (each variant has a different enhancer combination), writes all WAVs into `male/` and `female/`, and writes `transcriptions.json`.
-
-**Config path**
+This calls ElevenLabs `eleven_v3` for each (emotion, speaker, variant) combination, writes all WAVs into `male/` and `female/`, and writes `transcriptions.json`.
 
 ```yaml
 # open_source/conf/base_v2_breezy.yaml
@@ -237,60 +223,41 @@ tts:
 
 ---
 
-## Reference audio data formats
+## Reference audio formats
 
-### Common Voice clips
+| | Common Voice clips | ElevenLabs emotion WAVs | BreezyVoice output |
+|--|--|--|--|
+| **Format** | MP3 | WAV (PCM) | WAV (PCM) |
+| **Sample rate** | 22 050 Hz | 22 050 Hz | 24 000 Hz |
+| **Channels** | Mono | Mono | Mono (per-turn) / Stereo (full dialogue) |
+| **Bit depth** | 16-bit | 16-bit | 16-bit |
+| **Duration** | 1–10 s | 5–15 s | — |
 
-| Property | Value |
-|----------|-------|
-| Format | MP3 |
-| Sample rate | 22 050 Hz (typical) |
-| Channels | Mono |
-| Bit depth | 16-bit |
-| Duration | 1–10 s (validated sentences) |
-
-### ElevenLabs emotion WAVs
-
-| Property | Value |
-|----------|-------|
-| Format | WAV (PCM) |
-| Sample rate | 22 050 Hz |
-| Channels | Mono |
-| Bit depth | 16-bit |
-| Duration | 5–15 s per clip |
-
-### BreezyVoice output (generated audio)
-
-| Property | Value |
-|----------|-------|
-| Format | WAV (PCM) |
-| Sample rate | 24 000 Hz |
-| Per-turn files | Mono |
-| Full dialogue | Stereo (User = left, Agent = right) |
+Full dialogue stereo mixes are panned **User = left channel, Agent = right channel**.
 
 ---
 
 ## Setup
 
-### 1. Secrets — create `.env`
+### 1. Create `.env`
 
 ```bash
 cp .env.example .env
-# Edit .env and fill in your keys
+# Fill in your keys
 ```
 
 | Variable | Purpose |
 |----------|---------|
-| `OPENROUTER_API_KEY` | LLM calls for text generation (via OpenRouter) |
+| `OPENROUTER_API_KEY` | LLM calls for text generation (OpenRouter) |
 | `ELEVENLABS_API_KEY` | Emotion reference audio generation |
 
-`.env` is listed in `.gitignore` and will **never** be committed.
+`.env` is listed in `.gitignore` and will never be committed.
 
 ### 2. Python environment
 
-The pipeline requires **Python 3.10** (BreezyVoice ships `cp310` wheels).
+Requires **Python 3.10** (BreezyVoice ships `cp310` wheels).
 
-**Option A — exact lock (Linux-64, recommended)**
+**Option A — exact conda lock (Linux-64, recommended)**
 
 ```bash
 cd ~/SpeechLab/open_source
@@ -311,7 +278,7 @@ pip install -r tts_model/BreezyVoice/requirements.txt
 bash open_source/env/smoke_test.sh
 ```
 
-See `open_source/env/README.md` for a third option (tarball clone, fastest for clusters).
+See `open_source/env/README.md` for a third option (tarball clone, fastest on clusters).
 
 ---
 
@@ -325,7 +292,7 @@ Key settings:
 dialogue:
   with_emotion: true          # true  → emotion tags + ElevenLabs refs
                               # false → plain text + Common Voice refs
-  emotion_rate: 0.6           # fraction of turns that receive an emotion tag (0.0–1.0)
+  emotion_rate: 0.6           # fraction of turns that get an emotion tag (0.0–1.0)
   user_model:  meta-llama/llama-3.3-70b-instruct
   agent_model: openai/gpt-4o-mini
   min_turns: 12
@@ -335,16 +302,16 @@ tts:
   backend: breezyvoice
   sample_rate: 24000
   breezyvoice_repo_dir: tts_model/BreezyVoice
-  # Paths for no-emotion mode:
+  # No-emotion mode:
   common_voice_validated_tsv: ref_audio/cv-corpus-24.0-2025-12-05/zh-TW/validated.tsv
   common_voice_clips_dir:     ref_audio/cv-corpus-24.0-2025-12-05/zh-TW/clips
-  # Paths for emotion mode:
+  # Emotion mode:
   eleven_lab_emotion_dir:     ref_audio/eleven_lab_emotion
 
 multi_topic_run:
   output_root_base: /work/<username>
-  workers: 2
-  per_topic_count: 130
+  workers: 2                  # parallel topic workers
+  per_topic_count: 130        # dialogues per topic
   topics: [Art, Books, Cars, Coding, Cooking, Travel, ...]   # 40+ topics
 
 huggingface:
@@ -354,13 +321,11 @@ huggingface:
   hub_repo_id: Jaylin0418/synthetic_dialogue_zh
 ```
 
-Update the absolute paths in the `tts:` block to match your local setup.
-
 ---
 
 ## Running the pipeline
 
-### Stage 1 — Generate dialogue text (all topics, parallel)
+### Step 1 — Generate dialogue text (all topics, parallel)
 
 ```bash
 cd open_source
@@ -371,32 +336,33 @@ bash generate_txt.sh \
   --output-root-base /work/$(whoami)
 ```
 
-This creates a timestamped output folder (e.g. `syn_multi_topic_20250322_143000/`) under `--output-root-base` with one subdirectory per topic containing `.txt` dialogue files.
+Creates a timestamped output folder (e.g. `syn_multi_topic_20250322_143000/`) under `--output-root-base` with one subdirectory per topic.
 
-### Stage 2 — Synthesise speech (multi-GPU TTS)
+### Step 2 — Synthesise speech (multi-GPU TTS)
 
 ```bash
 bash generate_tts.sh /work/$(whoami)/syn_multi_topic_<timestamp>
 ```
 
-Set `GPUS` and `TOPICS_PER_GPU` environment variables to control GPU distribution:
+Control GPU distribution via environment variables:
 
 ```bash
 GPUS=4 TOPICS_PER_GPU=5 bash generate_tts.sh /work/$(whoami)/syn_multi_topic_<timestamp>
 ```
 
-### Stage 3 — Export to HuggingFace
+### Step 3 — Export to HuggingFace
 
 ```bash
 bash push_to_hf.sh /work/$(whoami)/syn_multi_topic_<timestamp>
-# Add --push to actually upload to HuggingFace Hub (requires HF token)
+# Append --push to actually upload to HuggingFace Hub (requires HF token)
 ```
 
 ### Single-topic run (for testing)
 
 ```bash
 cd open_source
-# Text only
+
+# Text generation only
 python run_topic_txt.py topic=Travel
 
 # TTS only (assumes text stage already done)
@@ -415,27 +381,27 @@ syn_multi_topic_<timestamp>/
     └── <Topic>_<suffix>/
         ├── txt/
         │   ├── scenario/
-        │   │   └── scenarios.json            # Stage 1 output
+        │   │   └── scenarios.json                   # Stage 1 output
         │   ├── scenario_txt/
-        │   │   └── <scenario_id>.txt         # Plain-text scenario descriptions
+        │   │   └── <scenario_id>.txt
         │   ├── system_prompt_txt/
         │   │   └── <scenario_id>_system_prompt.txt
         │   ├── dialogue/
-        │   │   └── <dialogue_id>.txt         # Raw LLM dialogue
+        │   │   └── <dialogue_id>.txt                # Raw LLM output
         │   ├── overlap/
-        │   │   └── <dialogue_id>.txt         # After overlap insertion
+        │   │   └── <dialogue_id>.txt                # After overlap insertion
         │   └── filler/
-        │       └── <dialogue_id>.txt         # After filler/backchannel insertion
+        │       └── <dialogue_id>.txt                # After filler/backchannel insertion
         └── wav/
             └── <dialogue_id>/
-                ├── full.wav                              # Stereo mix, no effects
-                ├── full_with_overlap_and_pause.wav       # Stereo mix, with effects
+                ├── full.wav                         # Stereo mix, no effects
+                ├── full_with_overlap_and_pause.wav  # Stereo mix, with effects
                 └── individual/
                     ├── turn_metadata.json
                     ├── turn00.wav
                     ├── turn01.wav
                     ├── ...
-                    ├── turn00_pause_overlap.wav          # Per-turn with effects
+                    ├── turn00_pause_overlap.wav     # Per-turn with effects
                     └── turn01_pause_overlap.wav
 ```
 
@@ -452,7 +418,7 @@ syn_multi_topic_<timestamp>/
 
 ### Dialogue `.txt` format
 
-Each line is one turn. After the filler stage, three special line types may appear:
+Each line is one turn. After the filler stage, three special prefixes may appear:
 
 ```
 User: 我想規劃一個周末旅遊，你有什麼建議嗎？
@@ -468,7 +434,7 @@ Agent: 我覺得花蓮太魯閣超級值得去，不過要提早訂票。
 | `User:` / `Agent:` | Normal turn (may include `(emotion:xxx)` prefix) |
 | `[overlap] User:` | User interrupts agent — overlaid on agent's audio |
 | `[backchannel] Agent:` | Short agent backchanneling during user turn |
-| `User: [pause]` | User hesitation — modelled as a pause in the audio |
+| `User: [pause]` | User hesitation — rendered as silence in audio |
 
 ### `turn_metadata.json` schema
 
@@ -490,13 +456,7 @@ Array of objects, one per turn:
     "audio_start_pause_overlap": 0.0,
     "audio_end_pause_overlap": 3.10,
     "audio_duration_pause_overlap": 3.10,
-    "para_tags": {
-      "gender": null,
-      "pitch": null,
-      "speed": null,
-      "volume": null,
-      "emotion": null
-    },
+    "para_tags": { "gender": null, "pitch": null, "speed": null, "volume": null, "emotion": null },
     "emotion_reference": ["female/happy_bella_1.wav"],
     "speaker_reference": "/abs/path/to/common_voice_zh-TW_31336427.mp3",
     "speaker_reference_id": "common_voice_zh-TW_31336427.mp3",
@@ -556,7 +516,7 @@ Each row is one dialogue turn.
 | Dialogue text | Plain Mandarin turns | Turns prefixed `(emotion:xxx)` |
 | TTS speaker reference | Random Common Voice clip (per dialogue) | ElevenLabs WAV matched to emotion + speaker (per turn) |
 | Reference prerequisite | Download Common Voice corpus | Run `batch_generate_emo_ref.py` |
-| Ref metadata fields | `sentence`, `age`, `gender`, `accents` | `voice_id`, `display_name`, `sentence`, `gender` |
+| Reference metadata fields | `sentence`, `age`, `gender`, `accents` | `voice_id`, `display_name`, `sentence`, `gender` |
 
 Both modes produce the same `turn_metadata.json` schema and the same HuggingFace dataset columns.
 
@@ -566,18 +526,18 @@ Both modes produce the same `turn_metadata.json` schema and the same HuggingFace
 
 | Category | Emotions |
 |----------|---------|
-| Positive | `amusement` · `calm` · `compassion` · `contentment` · `excitement` · `gratitude` · `happy` · `hope` · `pride` · `relief` · `surprised` |
-| Negative | `afraid` · `angry` · `anxiety` · `cry` · `disappointment` · `disgusted` · `envy` · `frustration` · `grief` · `guilt` · `melancholic` · `sad` · `shame` |
-| Special | `sarcastic` · `hysteria` |
+| Positive (11) | `amusement` · `calm` · `compassion` · `contentment` · `excitement` · `gratitude` · `happy` · `hope` · `pride` · `relief` · `surprised` |
+| Negative (13) | `afraid` · `angry` · `anxiety` · `cry` · `disappointment` · `disgusted` · `envy` · `frustration` · `grief` · `guilt` · `melancholic` · `sad` · `shame` |
+| Special (2) | `sarcastic` · `hysteria` |
 
-Each emotion has **3 text variants** per speaker to avoid repetitive reference audio.
+Each emotion has **3 text variants per speaker** to avoid repetitive reference audio.
 
 ---
 
 ## ElevenLabs speaker roster
 
-| Key in filenames | Display name | Gender | Notes |
-|-----------------|--------------|--------|-------|
+| Key | Display name | Gender | Notes |
+|-----|--------------|--------|-------|
 | `ranbir` | Ranbir — Calm, Steady and Clear | Male | |
 | `roger` | Roger — Laid-Back, Casual, Resonant | Male | |
 | `charlie` | Charlie — Deep, Confident, Energetic | Male | |
@@ -585,7 +545,7 @@ Each emotion has **3 text variants** per speaker to avoid repetitive reference a
 | `callum` | Callum — Husky Trickster | Male | |
 | `river` | River — Relaxed, Neutral, Informative | Female | |
 | `harry` | Harry — Fierce Warrior | Male | |
-| `bella` | Bella — Professional, Bright, Warm | Female | Excluded from auto-selection (`_EXCLUDED_SPEAKERS`) — strong Mainland Chinese accent |
+| `bella` | Bella — Professional, Bright, Warm | Female | Excluded from auto-selection — strong Mainland Chinese accent |
 | `sarah` | Sarah — Mature, Reassuring, Confident | Female | |
 | `laura` | Laura — Enthusiast, Quirky Attitude | Female | |
 
@@ -597,24 +557,24 @@ To exclude additional speakers from random selection, add their key to `_EXCLUDE
 
 ### Traditional Chinese preservation
 
-WeTextProcessing's `ZhNormalizer` (used by BreezyVoice's `CosyVoiceFrontEnd`) internally operates on Simplified Chinese, causing Traditional Chinese input to be converted to Simplified before synthesis. A post-normalisation OpenCC `s2twp` conversion step is applied in `tts_model/BreezyVoice/single_inference.py` to restore Traditional Chinese (Taiwan standard) after text normalisation.
+WeTextProcessing's `ZhNormalizer` (used by BreezyVoice's `CosyVoiceFrontEnd`) operates on Simplified Chinese, causing Traditional Chinese input to be converted before synthesis. A post-normalisation OpenCC `s2twp` conversion step in `tts_model/BreezyVoice/single_inference.py` restores Traditional Chinese (Taiwan standard) after text normalisation.
 
 ### Reference audio length limit
 
-The BreezyVoice speech tokenizer (`speech_tokenizer_v1.onnx`) has a maximum input length of ~1 500 frames. Reference audio clips longer than ~15 s trigger an ONNX broadcast error at inference time. All speaker prompt audio is automatically truncated to 15 s (240 000 samples @ 16 kHz) before being passed to the model.
+The BreezyVoice speech tokenizer has a maximum input length of ~1 500 frames (~15 s). Reference audio clips longer than 15 s trigger an ONNX broadcast error at inference time. All speaker prompt audio is automatically truncated to 15 s (240 000 samples @ 16 kHz) before being passed to the model.
 
 ### Emotion tag stripping
 
-Dialogue `.txt` files produced by the LLM may contain emotion tags in two positions:
+LLM-generated dialogue may contain emotion tags in two positions:
 
 - **Leading** (canonical): `(emotion:frustration) 我真的很不開心`
 - **Trailing** (variant): `我真的很不開心 (frustration)`
 
-Both forms are stripped from `content_to_synthesize` before TTS synthesis. Leading `(emotion:xxx)` tags are stripped by `strip_leading_emotion_tag`; trailing bare/full tags (e.g. `(curiosity)`, `(emotion:happy)`) are stripped by a regex in `sanitize_tts_text` in `open_source/syn_ver2_breezy.py`.
+Both forms are stripped from the synthesis input. Leading tags are stripped by `strip_leading_emotion_tag`; trailing tags by a regex in `sanitize_tts_text` in `open_source/syn_ver2_breezy.py`.
 
 ### SLURM multi-GPU configuration
 
-The `slurm/tts_multi_gpu_all_topics.job` script runs **2 SLURM tasks per GPU** (32 tasks total across 4 nodes × 4 GPUs). Each task's `CUDA_VISIBLE_DEVICES` is set via `$((SLURM_LOCALID / 2))` inside a `bash -c` wrapper, since `--gpus-per-task` / `--gpu-bind` do not propagate correctly in all cluster configurations. `--kill-on-bad-exit=0` prevents early-finishing tasks from cancelling remaining work.
+`slurm/tts_multi_gpu_all_topics.job` runs **2 SLURM tasks per GPU** (32 tasks across 4 nodes × 4 GPUs). Each task's `CUDA_VISIBLE_DEVICES` is set via `$((SLURM_LOCALID / 2))` inside a `bash -c` wrapper, since `--gpus-per-task` / `--gpu-bind` do not propagate correctly in all cluster configurations. `--kill-on-bad-exit=0` prevents early-finishing tasks from cancelling remaining work.
 
 ---
 
