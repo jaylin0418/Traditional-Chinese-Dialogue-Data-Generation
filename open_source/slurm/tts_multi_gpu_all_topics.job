@@ -19,7 +19,8 @@ set -euo pipefail
 # Each task picks a disjoint subset of topics (round-robin by rank across all nodes).
 
 REPO_DIR="$HOME/SpeechLab/open_source"
-CONFIG="$REPO_DIR/conf/base_v2_breezy.yaml"
+# Override via: sbatch --export=ALL,CFG="/path/to/config.yaml" ...
+CONFIG="${CFG:-$REPO_DIR/conf/base_v2_breezy.yaml}"
 
 # Override via: sbatch --export=ALL,RUN_ROOT="/path" ...
 RUN_ROOT="${RUN_ROOT:-/work/jaylin0418/synthetic_dataset_TC}"

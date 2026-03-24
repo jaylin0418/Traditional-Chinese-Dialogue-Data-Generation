@@ -1,0 +1,682 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SYNTHETIC DIALOGUE GENERATION PIPELINE - VERSION 2 (DUAL LLM)
+# ═══════════════════════════════════════════════════════════════════════════
+# This configuration enables dual-LLM dialogue generation where two separate
+# models interact to create natural conversations through turn-based exchange.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HYDRA CONFIGURATION - Disable outputs folder creation
+# ═══════════════════════════════════════════════════════════════════════════
+hydra:
+  output_subdir: null  # Don't create .hydra subdirectory
+  run:
+    dir: .  # Run in current directory instead of creating outputs/YYYY-MM-DD/
+  job:
+    chdir: false  # Don't change working directory
+
+device: cuda
+
+# Per-run output root (leave null to auto-create syn_data_zh_{timestamp})
+run_root: null
+
+# Para-compatible output root (affects TTS output + HuggingFace export)
+data_root: TEST_syn_data
+
+# Dataset/output mode label (used as folder name under data_root; HF exported column `mode` is set by the exporter)
+mode_name: normal
+
+# Optional suffix appended to topic folder names (e.g. "_emo" for emotion runs). Does NOT affect LLM prompt topic text.
+topic_folder_suffix: ""
+
+# Batch runner defaults (counts are scenario counts, not dialogue turns)
+batch_run:
+  topic: ${scenario.topic}
+  batch_size: ${scenario.n}
+  total_count: ${scenario.n}
+  final_huggingface_only: true
+
+multi_topic_run:
+  output_root_base: /work/jaylin0418
+  workers: 2
+  per_topic_count: 130
+  batch_size: 10
+  final_huggingface_only: true
+  topics:
+    - Art
+    - Books
+    - Cars
+    - Celebrities
+    - Coding
+    - Cooking
+    - Education
+    - Events
+    - Fashion
+    - Fitness
+    - Finance
+    - Food
+    - Gaming
+    - Gardening
+    - Health
+    - History
+    - Hobbies
+    - Holidays
+    - Home
+    - Languages
+    - Makeup
+    - Movies
+    - Music
+    - Nature
+    - News
+    - Pets
+    - Philosophy
+    - Photography
+    - Podcasts
+    - Politics
+    - Relationships
+    - Science
+    - Shopping
+    - Social Media
+    - Spirituality
+    - Sports
+    - Technology
+    - Traditions
+    - Travel
+    - Weather
+    - Work
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EMOTION POOL - Available emotions for the dialogue generation
+# ═══════════════════════════════════════════════════════════════════════════
+emotion:
+  - afraid
+  - amusement
+  - angry
+  - anxiety
+  - calm
+  - compassion
+  - contentment
+  - cry
+  - disappointment
+  - disgusted
+  - envy
+  - excitement
+  - frustration
+  - gratitude
+  - grief
+  - guilt
+  - happy
+  - hope
+  - melancholic
+  - pride
+  - relief
+  - sad
+  - shame
+  - surprised
+  - sarcastic
+  - hysteria
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOMAIN DESCRIPTIONS – passed to LLM as {topic_desc} in scenario prompt
+# ═══════════════════════════════════════════════════════════════════════════
+domain_descriptions:
+  Art: 討論繪畫、雕塑或藝術流派，或其他廣泛的藝術主題
+  Books: 討論文學、作者或閱讀偏好，或其他廣泛的書籍主題
+  Cars: 討論車款、駕駛體驗或汽車科技，或其他廣泛的汽車主題
+  Celebrities: 討論知名人物、電影或音樂，或其他廣泛的名人話題
+  Coding: 討論程式語言、軟體開發或程式挑戰，或其他廣泛的程式設計主題
+  Cooking: 討論食譜、烹飪技巧或廚房器具，或其他廣泛的烹飪主題
+  Education: 討論學習方法、科目或教育體制，或其他廣泛的教育主題
+  Events: 討論社交聚會、節慶或特殊場合，或其他廣泛的活動主題
+  Fashion: 討論穿搭風格、流行趨勢或個人美感，或其他廣泛的時尚主題
+  Fitness: 討論健身課表、健身器材或體能目標，或其他廣泛的健身主題
+  Finance: 討論投資、記帳或財務規劃，或其他廣泛的財務主題
+  Food: 討論食譜、餐廳或飲食偏好，或其他廣泛的飲食主題
+  Gaming: 討論電玩遊戲、主機或遊戲策略，或其他廣泛的遊戲主題
+  Gardening: 討論植物照護、園藝工具或景觀設計，或其他廣泛的園藝主題
+  Health: 討論健康習慣、飲食或醫療議題，或其他廣泛的健康主題
+  History: 討論歷史事件、人物或時代背景，或其他廣泛的歷史主題
+  Hobbies: 討論興趣、嗜好或休閒活動，或其他廣泛的嗜好主題
+  Holidays: 討論節日慶典、假期目的地或季節性活動，或其他廣泛的假日主題
+  Home: 討論室內設計、居家佈置或自己動手改造，或其他廣泛的居家主題
+  Languages: 討論語言學習、語言多樣性或翻譯，或其他廣泛的語言主題
+  Makeup: 討論彩妝技巧、美妝產品或化妝品牌，或其他廣泛的美妝主題
+  Movies: 討論喜愛的電影、導演或近期上映作品，或其他廣泛的電影主題
+  Music: 討論樂團、歌曲或演唱會體驗，或其他廣泛的音樂主題
+  Nature: 討論戶外活動、環境議題或自然奇觀，或其他廣泛的自然主題
+  News: 討論時事、新聞來源或近期事件，或其他廣泛的新聞主題
+  Pets: 討論寵物照護、動物行為或喜愛的動物，或其他廣泛的寵物主題
+  Philosophy: 討論存在議題或哲學概念，或其他廣泛的哲學主題
+  Photography: 討論相機器材、攝影技巧或後製編輯，或其他廣泛的攝影主題
+  Podcasts: 討論喜愛的 podcast、單集內容或主持人，或其他廣泛的 podcast 主題
+  Politics: 討論時事、政治人物或政治理念，或其他廣泛的政治主題
+  Relationships: 討論交友經驗、友誼或家庭互動，或其他廣泛的人際關係主題
+  Science: 討論科學發現或理論，或其他廣泛的科學主題
+  Shopping: 討論購物習慣、流行趨勢或線上購物，或其他廣泛的購物主題
+  Social Media: 討論網路平台、網紅或病毒式內容，或其他廣泛的社群媒體主題
+  Spirituality: 討論冥想、正念或心靈實踐，或其他廣泛的心靈主題
+  Sports: 討論球隊、運動員或近期賽事，或其他廣泛的運動主題
+  Technology: 討論新型裝置、軟體或科技趨勢，或其他廣泛的科技主題
+  Traditions: 討論文化習俗、節日或家族傳統，或其他廣泛的傳統習俗主題
+  Travel: 討論喜愛的旅遊地點、旅行經驗或行程規劃，或其他廣泛的旅遊主題
+  Weather: 討論氣候型態、天氣預報或自然災害，或其他廣泛的天氣主題
+  Work: 討論工作職責、職涯目標或職場環境，或其他廣泛的職場主題
+
+# Pipeline Stages
+stages: [scenario, system_prompt, dialogue, overlap, filler, tts, huggingface]
+# stages: [scenario, dialogue, overlap, filler, judge, tts]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 1: SCENARIO GENERATION
+# ═══════════════════════════════════════════════════════════════════════════
+scenario:
+  model: openai/gpt-4o-mini  # OpenRouter format: provider/model-name
+  n: 1 # Number of scenarios to generate in one topic
+  # Retry scenario generation when JSON is invalid or schema mismatched.
+  max_retries: 3
+  # Outputs live under ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/...
+  out_file: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/scenario/scenarios.json
+  topic: Travel
+  prompt: |
+    你是一位擅長寫台灣日常情境的編劇。
+
+    任務：以「{topic}」（主題說明：{topic_desc}）為主題，產生剛好 {n} 個多樣化的對話情境。
+    語言：繁體中文（台灣用語），避免簡體字與中國用語（例如：打车、手机、身份证、小区、物业）。
+    補充：{topic} 只是「分類名稱」；請不要在 description 內直接輸出英文的 domain 名稱（例如：不要出現 {topic} 這個英文字）。
+
+    內容規則：
+    - 每個情境 3–4 句，描述真實、合理、貼近日常的狀況與背景。
+    - 使用者有一個與 {topic} 相關的問題/困擾/需求；代理人會提供協助。
+    - 禁止出現任何實際對話內容（不要出現 User:/Agent: 或引號對話）。
+    - 情境要有差異（人物身分、時間壓力、費用、地點、資源限制、突發狀況、規則/流程等）。
+    - 【硬性】盡量避免不必要的英文字母與阿拉伯數字；必要時改用中文口語寫法（例如：二十、三點半、半小時、十到十五分鐘）。
+    - 【硬性】不要出現網址、Email、帳號/代碼、序號、英數混雜型縮寫。
+
+    輸出格式（必須嚴格遵守）：
+    - 只能輸出「純 JSON」一個物件；不要輸出任何解釋、不要用 code block。
+    - 頂層只能有 key："scenarios"。
+    - "scenarios" 是陣列，長度必須等於 {n}。
+    - 每個元素必須是只含一個 key 的物件，key 需從 scenario1 連號到 scenario{n}（不可缺漏）。
+    - 每個 scenario 物件必須包含 description 字串；description 內不可包含換行字元。
+
+    JSON 形狀（示意，請照此結構輸出）：
+    {{
+    "scenarios": [
+      {{
+        "scenario1": {{
+          "description": "（此處填入情境描述：3–4 句、貼近台灣日常、與主題相關；不要換行）"
+        }}
+      }},
+      {{
+        "scenario2": {{
+          "description": "（此處填入另一個不同的情境描述：3–4 句；不要換行）"
+        }}
+      }}
+    ]
+    }}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 1.5: SYSTEM PROMPT GENERATION (PER SCENARIO)
+# Given each scenario, generate a short scenario-level system prompt that will
+# be injected into dialogue generation as additional system context.
+# Saved to:
+#   {data_root}/{mode_name}/{topic}/txt/system_prompt_txt/{scenario_id}_system_prompt.txt
+# Scenario descriptions are also saved to:
+#   {data_root}/{mode_name}/{topic}/txt/scenario_txt/{scenario_id}.txt
+# ═══════════════════════════════════════════════════════════════════════════
+system_prompt:
+  model: openai/gpt-4o-mini
+  n: 5
+  gen:
+    max_tokens: 512
+    temperature: 0.7
+    top_p: 0.9
+  prompt: |
+    你是一位擅長寫台灣日常口語對話的編劇與提示詞工程師。
+
+    任務：給你一個對話 scenario（JSON，含 id/description），請輸出一段「system prompt」
+    用來引導後續 LLM 生成該情境的多輪對話。
+
+    輸出規則（超硬性，違反即錯）：
+    - 只輸出 system prompt 文字本體；不要前言、不要標籤、不要 code block、不要 JSON。
+    - 最多三句話，內容精準、可操作。
+    - 語言：繁體中文（台灣用語），避免簡體字與中國用語（如：地铁、公交、网约车、微信、支付宝）。
+    - 系統提示必須強調：每一行（每個 turn）就是一個句子，八十字內、【超硬性】二十八秒內可口說完；超過就刪短。
+    - 提醒角色與互動目標：使用者有困擾/需求，代理人務實協助並追問必要資訊。
+
+    請根據 scenario description 量身寫出 system prompt。
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 2: DIALOGUE GENERATION (V2 - DUAL LLM SYSTEM)
+# ═══════════════════════════════════════════════════════════════════════════
+dialogue:
+  user_model: meta-llama/llama-3.3-70b-instruct
+  agent_model: openai/gpt-4o-mini
+
+  # Retry policy
+  max_retries: 3
+
+  # Probability that a non-first user turn will be forced into a short backchannel response.
+  backchannel_rate: 0.15
+
+  # Generation params
+  user_gen:
+    max_tokens: 512
+    temperature: 0.9
+    top_p: 0.9
+  agent_gen:
+    max_tokens: 768
+    temperature: 0.8
+    top_p: 0.9
+
+  user_prompt: |
+    你是使用者，正在就情境向代理人求助。
+    語言：繁體中文台灣口語，避免簡體字與中國用語。
+
+    對話節奏：你在模擬一個真實的人，不是在寫文章。
+    - 先講困擾/需求，資訊逐步補齊；少復述，多補新資訊。
+    - 真實的人說話時，遇到以下情況會自然說出很短的回應，你也要這樣做：
+      · 剛聽到對方說話、還在消化時：喔、哦這樣、哦好、嗯（各種不同的反應，不要每次都一樣）
+      · 需要一點時間處理、查東西、想一想：等我一下、我看看、我想想
+      · 對方說的就是自己要做的，沒什麼好補充：好、好好、知道了、了解
+      · 答不出來追問：不確定欸、我沒想過這個、這個我不太清楚
+
+    輸出格式（超硬性）：
+    - 只輸出一行一句；八十個中文字內；【超硬性】二十八秒內可口說完，超過即刪短再輸出。
+    - 不要加 User:；不要旁白/動作；不要任何標頭（[overlap]/[pause]/[backchannel]）。
+    - 禁止 Markdown/條列；不要網址、Email、帳號/代碼、序號。
+    - 盡量不用英文字母或阿拉伯數字；必要時改用中文口語。
+
+    單行範例（僅供風格參考，不可照抄）：
+    - 欸我有點急，行程臨時被改了我現在要先做什麼
+    - 哦這樣喔，好
+    - 我不確定欸，我先查一下
+    - 好，我先去聯絡看看
+    - 我覺得不太行欸，這樣會撞到原本的安排
+    - 欸真的假的
+    - 讓我想想
+
+  agent_prompt: |
+    角色：你是代理人（Agent），一位說台式中文的助理，直接切入重點、給出可執行的建議並追問必要資訊。
+    語言：繁體中文台灣口語，避免簡體字與中國用語。
+
+    每回合一個重點：一句話內盡量做到「同理/確認＋一個下一步＋一個追問」。
+    - 別講一長串通常/或者/建議；一次只給一個步驟。
+    - User 很短（含十字內超短回覆）或答非所問也沒關係：改問是非題/二選一，並先給可立刻做的下一步。
+
+    輸出格式（超硬性）：
+    - 只輸出一行一句；八十個中文字內；【超硬性】二十八秒內講完，超過即刪短再輸出。
+    - 不要加 Agent:；不要旁白/動作；不要任何標頭。
+    - 禁止 Markdown/條列；不要網址、Email、帳號/代碼、序號。
+    - 盡量不用英文字母或阿拉伯數字；必要時改用中文口語。
+
+    單行範例（僅供風格參考，不可照抄）：
+    - 我懂你很急，你先去找助理的聯絡方式，現在找得到電話嗎
+    - 好，那你先傳訊息同步狀況，錄影是提早到今天還是明天
+    - 了解，你先列出三個不能動的行程，我再幫你排優先順序
+    - 可以，你先把原本安排的重點時段找出來，有沒有撞到交通或彩排
+
+  min_turns: 12
+  max_turns: 15
+  per_scenario: 1
+  out_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/dialogue
+
+  # ── Emotion mode ──────────────────────────────────────────────────────────
+  # Set with_emotion: true (or pass --with-emotion at runtime) to use the
+  # emotion-tagged prompts below instead of the plain prompts above.
+  # Each line must start with (emotion:emotion_name) where emotion_name is one
+  # of the values in the top-level `emotion:` list.
+  with_emotion: false
+  # Fraction of turns that get an emotion tag when with_emotion=true (0.0–1.0)
+  emotion_rate: 0.6
+
+  user_prompt_with_emotion: |
+    角色：你是使用者（User），正在就情境向代理人求助/詢問。
+    語言：繁體中文（台灣用語），避免簡體字與中國用語（例如：打车、手机、身份证、小区、物业）。
+
+    輸出規則（硬性，違反即錯）：
+    1) 只輸出一行；禁止換行、空白行。
+    2) 不要加 User:，不要旁白/動作，不要任何標頭（[overlap]/[pause]/[backchannel]）。
+    3) 禁止 Markdown、禁止條列（1.2.、-、•）、禁止把整句用引號包起來。
+
+    情緒標籤（必填）：
+    - 必須以 (emotion:emotion_name) 開頭；圓括號 ( )，冒號，無空格，放在最前面。
+    - emotion_name 必須完全等於清單中的其中一個值：{EMOTION_LIST}（禁止同義詞/變形/自造詞）。
+    - 禁止把標籤放在句尾或句中；禁止標籤與正文換行（標籤和文字必須在同一行）。
+    - 錯誤示範（禁止）：我今天好高興 (happy) ／ (happy)\n今天真好 ／ /emotion:happy/ 今天真好 ／ (emotion: happy) 今天真好
+
+    長度與內容：
+    - 只輸出一行；不含情緒標籤時，整行八十個中文字（含標點）以內；【超硬性】二十八秒內可口說完，超過即刪短再輸出。
+    - 你在模擬一個真實的人：遇到剛聽完、需要消化、或沒什麼好補充的時候，就輸出很短的回應（好、哦這樣、等我一下、讓我想想、不確定欸……自行依情境發揮，避免每次都用同一個詞）。此時情緒標籤仍須標。
+    - 一次只講 1–2 個重點；不要把太多背景/條件塞進同一行。
+    - 用短句、自然口語；必要時只加一個追問把資訊補齊（其餘留到下一輪再說）。
+    - 輸出前快速檢查字數；若超過上限，先刪到符合再輸出。
+    - 可少量口頭語（欸、嗯、喔、那個、有點、蠻、可能），但不要每句都加。
+    - 時間/範圍請用中文說法，避免 8:30、45-60 這種格式；例外可保留 3 號出口、YouBike 2.0、TPASS。
+
+  agent_prompt_with_emotion: |
+    角色：你是代理人（Agent），一位說台式中文的助理，直接切入重點、給出可執行的建議並追問必要資訊。
+    語言：繁體中文（台灣用語），避免簡體字與中國用語（例如：打车、手机、身份证、小区、物业）。
+
+    輸出規則（硬性，違反即錯）：
+    1) 只輸出一行；禁止換行、空白行。
+    2) 不要加 Agent:，不要旁白/動作，不要任何標頭（[overlap]/[pause]/[backchannel]）。
+    3) 禁止 Markdown、禁止條列（1.2.、-、•）、禁止把整句用引號包起來。
+
+    情緒標籤（必填）：
+    - 必須以 (emotion:emotion_name) 開頭；圓括號 ( )，冒號，無空格，放在最前面。
+    - emotion_name 必須完全等於清單中的其中一個值：{EMOTION_LIST}（禁止同義詞/變形/自造詞）。
+    - 禁止把標籤放在句尾或句中；禁止標籤與正文換行（標籤和文字必須在同一行）。
+    - 錯誤示範（禁止）：我了解你的困擾 (calm) ／ (calm)\n我了解你 ／ /emotion:calm/ 我了解 ／ (emotion: calm) 我了解
+    - 情緒要配合使用者狀態（例如對方焦慮時用 calm/compassion）。
+
+    長度與回覆策略：
+    - 只輸出一行；不含情緒標籤時，整行八十個中文字（含標點）以內；【超硬性】二十八秒內講完，超過即刪短再輸出。
+    - 用短句、務實、可執行；先確認/同理，再給一個最重要的下一步，最後用一個追問補資訊。
+    - 不要一次把所有方案都講完；只留「一個做法＋一個原因＋一個問題」即可。
+    - 輸出前快速檢查字數；若超過上限，先刪到符合再輸出。
+    - 時間/範圍用中文說法，避免 8:30、45-60 這種格式；例外可保留 3 號出口、YouBike 2.0、TPASS。
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 3: OVERLAP INSERTION
+# ═══════════════════════════════════════════════════════════════════════════
+overlap:
+  model: openai/gpt-4o-mini
+  # Retries per file when overlap stage hits transient API/network errors.
+  max_retries: 10
+  out_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/overlap
+  gen:
+    max_tokens: 5000
+    temperature: 0.8
+  prompt: |
+    你是一位極度嚴謹、非常擅長遵循指示的編劇。
+
+    任務：基於輸入的多輪對話，視需要插入使用者打斷（overlap）與使用者停頓（pause），讓對話更像真人口語互動；並輸出完整對話。
+    語言：繁體中文（台灣用語）。
+
+    【重要：不需要 emotion tag】
+    - 不要新增任何 (emotion:xxx) 或類似標記。
+    - 若輸入對話含有 emotion tag，請直接移除，只保留純文字內容。
+
+    【總原則（硬性，違反即錯）】
+    1) 情境與角色一致：不得插入無關內容，不得改變原本意思或人設。
+     2) 【不要拆句子（超硬性）】在沒有 pause / overlap 的情況下，絕對不要把任何一句原本完整、通順的句子拆成兩句或拆成兩行。
+       - 如果覺得一句太長：只能刪字或改寫變短；不要新增第二行來分段。
+       - 唯一例外：只有在「User pause」的三行結構時，才允許把同一句 User 原句拆成兩行。
+       - 尤其：不要拆 Agent 的句子。
+
+    【反例（這樣不行；超硬性）】
+    - 錯：把同一個 Agent 回覆硬拆成兩行 Agent（但沒有 pause/overlap 的需要），User 亦同：
+      Agent: 先在售票機選同班次的連號座位，買到就讓兩個小孩坐一起、大人分開。
+      Agent: 你從哪站出發、想搭幾點左右？
+    - 對：只能改寫成同一行一句話（不要多一行）：
+      Agent: 你先在售票機找同班次連號座位，你從哪站出發、想搭幾點左右？
+    3) 【overlap 唯一形式】overlap 只能是「新增一行」且只能由 User 打斷 Agent：
+       - 行首必須完全是：[overlap] User:
+       - overlap 內容必須短、自然、像插話（1 句）。
+       - overlap 行必須夾在兩行 Agent 之間：上一行必須是 Agent，下一行也必須是 Agent。
+       - 只能打斷 Agent（User 不能打斷自己）。
+       - 不可把原本的 Agent 行拆成兩行來塞 overlap。
+       例：
+       Agent: 可以先跟我說你現在最困擾的是什麼嗎
+       [overlap] User: 我現在肚子很痛
+       Agent: 好，那我先幫你釐清狀況
+    4) 【pause 唯一形式】pause 只能用在 User，且只能用以下三行結構來表示「同一個 User 原句」的停頓：
+       - 第 1 行：User: <停頓前半句（1 句）>
+       - 第 2 行：[pause] User: [pause]（這一行內容必須完全一致，不可多字）
+       - 第 3 行：User: <停頓後半句（1 句）>
+       - 也就是說：[pause] 這一行必須夾在兩行 User 之間。
+       例：
+       User: 我剛剛其實有點聽不太清楚
+       [pause] User: [pause]
+       User: 你可以講慢一點嗎我想跟上
+
+    【使用原則（請盡量做到）】
+    - 是否加入、加入幾次，由你依對話自然度自行決定。
+    - 但請避免為了「塞標頭」而破壞原本對話節奏或可讀性。
+
+    【輸出格式（硬性）】
+    - 只輸出對話本體，不要任何解釋或標題。
+    - 禁止空白行。
+    - 每一行只能是一個 turn，行首只能是以下其一：
+      - User:
+      - Agent:
+      - [overlap] User:
+      - [pause] User: [pause]
+    - 任何 [overlap]/[pause] 只能出現在「行首」；不得出現在句中。
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 4: FILLER WORD INSERTION
+# ═══════════════════════════════════════════════════════════════════════════
+filler:
+  model: openai/gpt-4o-mini
+  # Retries per file when filler stage hits transient API/network errors.
+  max_retries: 10
+  out_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/filler
+  gen:
+    max_tokens: 5000
+    temperature: 0.7
+  prompt: |
+    你是一位極度嚴謹、非常擅長遵循指示的編劇。
+
+    任務：基於輸入的多輪對話，視需要加入 filler（口語贅字）與「呼吸/猶豫聲」讓口語更自然，並視需要加入 backchannel 讓互動更像真人；最後輸出完整對話。
+    語言：繁體中文（台灣用語）。
+
+    【重要：不需要 emotion tag】
+    - 不要新增任何 (emotion:xxx) 或類似標記。
+    - 若輸入對話含有 emotion tag，請直接移除，只保留純文字內容。
+
+    【總原則（硬性，違反即錯）】
+    1) 只做「口語化」與「互動節奏」微調：保留原本語意與角色設定，不要新增新事件、新資訊或新需求。
+     1.5) 【不要拆句子（超硬性）】在沒有要做 pause / overlap / backchannel 的情況下，絕對不要把任何一句原本完整、通順的句子拆成兩句或拆成兩行。
+       - filler 的正確做法：在「同一行」內加少量口語贅字/呼吸聲；不要為了塞 filler 把一句拆成兩行。
+       - 如果覺得一句太長：只能刪字或改寫變短；不要新增第二行來分段。
+
+    【反例（這樣不行；超硬性）】
+    - 錯：沒有 pause/overlap/backchannel，卻把一句話拆成兩行（尤其是拆成連續兩行 Agent）：
+      Agent: 先在售票機選同班次的連號座位，買到就讓兩個小孩坐一起、大人分開。
+      Agent: 你從哪站出發、想搭幾點左右？
+    - 對：合併成同一行一句話，或刪短改寫（不要多一行）：
+      Agent: 你先在售票機找同班次連號座位，你從哪站出發、想搭幾點左右？
+    2) filler/贅字/呼吸聲只能加在 User 的一般句子裡；Agent 的一般句子禁止加入 filler/呼吸聲。
+       - 注意：[backchannel] 行是一種特殊新行，目的是插入短回應；它不受這條 filler 規則限制。
+    3) filler 以自然為主：可加可不加、加幾個由你自行決定；但請避免過度堆疊或讓句子變得難聽清。
+    4) 輸出只能是對話本體：禁止動作描述、旁白、舞台指示。
+
+    【backchannel（硬性規則）】
+    5) backchannel 必須用來「順暢切開對方的一句話」並插入一個很短的回應；且必須開新行並以 [backchannel] 開頭。
+       - backchannel 行可以是 User 或 Agent，形式只能是以下兩種之一：
+         - [backchannel] Agent: <一句很短的回應>
+         - [backchannel] User: <一句很短的回應>
+       - 你必須把「被切開的那個 speaker 的原句」拆成前後兩句（各 1 句），讓 backchannel 夾在中間。
+       - 結構必須是 A → [backchannel] B → A（A/B 為不同 speaker）。也就是說：[backchannel] 這一行必須夾在兩行「對方」之間：
+         - 若 backchannel 是 Agent，則必須是：User → [backchannel] Agent → User
+         - 若 backchannel 是 User，則必須是：Agent → [backchannel] User → Agent
+       - 拆開後前後兩句加起來要等價於原句的意思，且要讀起來順。
+       例：
+       User: 我剛剛其實有點聽不太清楚
+       [backchannel] Agent: 嗯我懂
+       User: 你可以講慢一點嗎我想跟上
+
+     【overlap / pause（重申 Stage 3 硬規則；硬性，違反即錯）】
+     6) 【不拆句（超硬性）】除了「User pause」與「插入 backchannel 時必須切開對方那一句」之外，請不要把任何一句拆成兩行或拆成兩句（包含為了更口語、為了更好聽、為了塞 filler 都不行）。
+     7) 【overlap 唯一形式】若要保留或新增 overlap，只能是新增一行、且只能由 User 打斷 Agent：
+       - 行首必須完全是：[overlap] User:
+       - overlap 內容必須短、自然、像插話（1 句）。
+       - overlap 行必須夾在兩行 Agent 之間：Agent → [overlap] User → Agent
+       - 只能打斷 Agent（User 不能打斷自己）。
+       - 不可把原本的 Agent 行拆成兩行來塞 overlap。
+     8) 【pause 唯一形式】若要保留或新增 pause，只能用以下三行結構表示同一個 User 原句的停頓：
+       - 第 1 行：User: <停頓前半句（1 句）>
+       - 第 2 行：[pause] User: [pause]（這一行內容必須完全一致，不可多字）
+       - 第 3 行：User: <停頓後半句（1 句）>
+       - 也就是說：[pause] 這一行必須夾在兩行 User 之間。
+     9) 【行首限制】任何 [overlap]/[pause]/[backchannel] 只能出現在行首；不得出現在句中。
+
+    【使用原則（請盡量做到）】
+    - backchannel / overlap / pause 是否加入、加入幾次，由你依對話自然度自行決定；可以完全不加入。
+    - 但請避免為了加入標頭而破壞原本意思或可讀性。
+
+    【輸出格式（硬性）】
+    - 只輸出對話本體，不要任何解釋或標題。
+    - 禁止空白行。
+    - 任一行只能是以下格式之一：
+      - User: ...
+      - Agent: ...
+      - [overlap] User: ...
+      - [pause] User: [pause]
+      - [backchannel] Agent: ...
+      - [backchannel] User: ...
+    - 任何 [overlap]/[pause]/[backchannel] 只能出現在行首；不得出現在句中。
+    - 盡量維持 User/Agent 交替；除非是插入 backchannel/overlap，或 User pause 造成的額外行。
+
+    【內容補充】
+    - filler/呼吸聲例子（僅供參考，不限於此）：嗯、呃、欸、那個、就是、嗯哼、（吸氣聲）。
+    - 盡量避免英文字母與阿拉伯數字；必要時用中文口語寫法。
+    - 不要新增網址、Email、帳號/代碼、序號。
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 5: QUALITY JUDGING
+# ═══════════════════════════════════════════════════════════════════════════
+judge:
+  model: openai/gpt-4o-mini
+  out_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/judge
+  top_x: 3
+  gen:
+    max_tokens: 5000
+    temperature: 0.2
+  prompt: |
+    你是嚴謹的劇本評論者。
+    請根據下列 6 項標準，對輸入對話做評語與打分。
+
+    規則：
+    - 每項標準輸出一小段評論 + 分數（1–5）。
+    - 最後一行輸出總分：Score: <總分>
+
+    評分標準：
+    1) 角色與情境符合度
+    2) 語言自然度與多樣性（台灣口語）
+    3) 格式一致性（User/Agent 與 [overlap]/[pause]/[backchannel]）
+    4) 連貫性與流暢度
+    5) 無旁白/動作描述
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 6: TEXT-TO-SPEECH GENERATION
+# ═══════════════════════════════════════════════════════════════════════════
+tts:
+  filter_by_current_scenarios: false  # Process all txt files, not just the last batch
+  load_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/txt/filler
+  # When huggingface.enabled=true, tts_batch enforces ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/wav
+  wav_dir: ${data_root}/${mode_name}/${scenario.topic}${topic_folder_suffix}/wav
+  backend: breezyvoice
+  sample_rate: 24000
+  wav_suffix: BreezyVoice
+
+  # Pause/overlap effects mix (full_with_overlap_and_pause.wav + *_pause_overlap.wav)
+  # - null: auto (only generate when script contains [pause]/[overlap])
+  # - true: always generate
+  # - false: never generate
+  write_pause_overlap_mix: null
+
+  # Mixing (only affects full_with_overlap_and_pause.wav)
+  # - inter_turn_silence_sec: silence between normal turns
+  # - overlap_shift_sec_*: how early an [overlap] turn starts (larger = more overlap)
+  # - overlap_pause_sec: extra pause inserted right before the [overlap] turn (smaller = more overlap)
+  mix:
+    inter_turn_silence_sec: 0.25
+    overlap_shift_sec_min: 0.8
+    overlap_shift_sec_max: 1.9
+    overlap_pause_sec: 0.02
+
+  # Optional: set to e.g. "0" or "1" to pin BreezyVoice subprocess to a GPU.
+  # When unset, inherits current environment's CUDA_VISIBLE_DEVICES.
+  cuda_visible_devices: null
+
+  # Speaker reference source
+  # - xtts_reference: pick from `spk_audio_dir/all/*.wav` (legacy)
+  # - common_voice_validated: pick from Common Voice `validated.tsv` + `clips/`
+  # - eleven_lab_emotion: per-turn emotion-matched reference from eleven_lab_emotion_dir
+  #     expects files named {emotion}_{speaker}_{num}.wav or {speaker}_{num}.wav
+  reference_source: common_voice_validated
+  eleven_lab_emotion_dir: /home/jaylin0418/SpeechLab/ref_audio/eleven_lab_emotion
+  # ElevenLabs speaker registry – keyed by the speaker_name used in wav filenames
+  eleven_lab_speakers:
+    ranbir:
+      display_name: "Ranbir - Calm, Steady and Clear"
+      voice_id: "SGbOfpm28edC83pZ9iGb"
+      description: "Calm, Steady and Clear"
+    bella:
+      display_name: "Bella - Professional, Bright, Warm"
+      voice_id: "hpp4J3VqNfWAUOO0d1Us"
+      description: "Professional, Bright, Warm"
+    roger:
+      display_name: "Roger - Laid-Back, Casual, Resonant"
+      voice_id: "CwhRBWXzGAHq8TQ4Fs17"
+      description: "Laid-Back, Casual, Resonant"
+    sarah:
+      display_name: "Sarah - Mature, Reassuring, Confident"
+      voice_id: "EXAVITQu4vr4xnSDxMaL"
+      description: "Mature, Reassuring, Confident"
+    laura:
+      display_name: "Laura - Enthusiast, Quirky Attitude"
+      voice_id: "FGY2WhTYpPnrIDTdsKH5"
+      description: "Enthusiast, Quirky Attitude"
+    charlie:
+      display_name: "Charlie - Deep, Confident, Energetic"
+      voice_id: "IKne3meq5aSn9XLyUdCD"
+      description: "Deep, Confident, Energetic"
+    george:
+      display_name: "George - Warm, Captivating Storyteller"
+      voice_id: "JBFqnCBsd6RMkjVDRZzb"
+      description: "Warm, Captivating Storyteller"
+    callum:
+      display_name: "Callum - Husky Trickster"
+      voice_id: "N2lVS1w4EtoT3dr4eOWO"
+      description: "Husky Trickster"
+    river:
+      display_name: "River - Relaxed, Neutral, Informative"
+      voice_id: "SAz9YHcvj6GT2YYXdXww"
+      description: "Relaxed, Neutral, Informative"
+    harry:
+      display_name: "Harry - Fierce Warrior"
+      voice_id: "SOYHLrjzK2X1ezoPC6cr"
+      description: "Fierce Warrior"
+  common_voice_validated_tsv: /home/jaylin0418/SpeechLab/ref_audio/cv-corpus-24.0-2025-12-05/zh-TW/validated.tsv
+  common_voice_clips_dir: /home/jaylin0418/SpeechLab/ref_audio/cv-corpus-24.0-2025-12-05/zh-TW/clips
+  # Optional: set to male/female to filter; null/any means no restriction
+  common_voice_gender_filter: null
+
+  # BreezyVoice settings
+  breezyvoice_repo_dir: /home/jaylin0418/SpeechLab/tts_model/BreezyVoice
+  breezy_python: python
+  model_path: MediaTek-Research/BreezyVoice-300M
+  # Optional: provide these to avoid Whisper transcription (faster & more stable)
+  user_prompt_text_transcription: null
+  agent_prompt_text_transcription: null
+
+  # IndexTTS2 settings (kept for fallback)
+  model_dir: index-tts/checkpoints
+  spk_audio_dir: /home/jaylin0418/SpeechLab/synthetic_data_breezyvoice/XTTS_reference
+  emotion_audio_pool_dir: emo
+  user_ref_audio: null
+  agent_ref_audio: null
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 7: HUGGINGFACE DATASET EXPORT
+# ═══════════════════════════════════════════════════════════════════════════
+huggingface:
+  enabled: true
+  # Include pause/overlap audio columns in the exported dataset.
+  # - null: auto (include only if full_with_overlap_and_pause.wav exists)
+  # - true: force include (and backfill *_pause_overlap if needed)
+  # - false: never include (no pause_overlap columns)
+  include_pause_overlap: null
+  # Which txt stage to link as final_txt_path: auto/null -> filler->overlap->dialogue
+  final_txt_stage: auto
+  mode_override: normal
+  dataset_name: synthetic_dialogues_v2
+  output_dir: ${data_root}/huggingface_dataset
+  push_to_hub: false
+  hub_repo_id: Jaylin0418/synthetic_dialogue_zh
+  hub_private: false
+  hub_revision: null

@@ -1,0 +1,11 @@
+Scanned 810 WAV files.
+
+Files outside [6.0, 12.0] seconds (6 total):
+File                                                    Duration (s)  Flag
+---------------------------------------------------------------------------
+female/melancholic_river_3.wav                                5.84s  [TOO SHORT]
+female/shame_river_1.wav                                     14.24s  [TOO LONG]
+male/afraid_callum_2.wav                                     12.24s  [TOO LONG]
+male/afraid_charlie_2.wav                                    12.08s  [TOO LONG]
+male/afraid_harry_2.wav                                      12.80s  [TOO LONG]
+male/contentment_harry_1.wav                                  5.44s  [TOO SHORT]

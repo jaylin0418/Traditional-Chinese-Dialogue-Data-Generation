@@ -1159,13 +1159,16 @@ class CVReferenceCandidate:
 
 @lru_cache(maxsize=8)
 def _load_common_voice_validated_candidates(
-    *, tsv_path: str, clips_dir: str
+    *, tsv_path: str, clips_dir: str, allowed_clips_tsv: Optional[str] = None
 ) -> Tuple[CVReferenceCandidate, ...]:
     """Load Common Voice zh-TW validated.tsv candidates.
 
     We keep absolute audio_path for local generation, but store a stable
     reference_id (typically the `path` field, e.g. common_voice_...mp3) for
     dataset metadata.
+
+    If allowed_clips_tsv is provided, only clips whose filename appears in
+    the first column of that TSV will be included.
     """
 
     tsv = Path(tsv_path).expanduser().resolve()
@@ -1175,6 +1178,21 @@ def _load_common_voice_validated_candidates(
         raise FileNotFoundError(f"Common Voice validated.tsv not found: {tsv}")
     if not clips.exists():
         raise FileNotFoundError(f"Common Voice clips dir not found: {clips}")
+
+    # Build allowed-clip whitelist if provided
+    allowed_set: Optional[set] = None
+    if allowed_clips_tsv:
+        allowed_path = Path(allowed_clips_tsv).expanduser().resolve()
+        if not allowed_path.exists():
+            raise FileNotFoundError(f"allowed_clips_tsv not found: {allowed_path}")
+        allowed_set = set()
+        with allowed_path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.reader(f, delimiter="\t")
+            next(reader, None)  # skip header
+            for row in reader:
+                if row:
+                    allowed_set.add(row[0].strip())
+        logging.info("Loaded %d allowed clips from %s", len(allowed_set), allowed_path)
 
     wanted_keys = [
         "client_id",
@@ -1201,6 +1219,10 @@ def _load_common_voice_validated_candidates(
         for row in reader:
             rel = (row.get("path") or "").strip()
             if not rel:
+                continue
+
+            # Filter against whitelist if provided
+            if allowed_set is not None and rel not in allowed_set:
                 continue
 
             audio_file = clips / rel
@@ -3549,10 +3571,19 @@ def tts_batch(cfg):
         if not cv_clips_path.is_absolute():
             cv_clips_path = project_root / cv_clips_path
 
+        cv_allowed_clips_tsv = cfg.tts.get(
+            "common_voice_allowed_clips_tsv",
+            "/home/jaylin0418/SpeechLab/ref_audio/cv-corpus-24.0-2025-12-05/zh-TW/clip_durations_filtered.tsv",
+        )
+        cv_allowed_clips_path = Path(str(cv_allowed_clips_tsv)).expanduser()
+        if not cv_allowed_clips_path.is_absolute():
+            cv_allowed_clips_path = project_root / cv_allowed_clips_path
+
         cv_candidates = list(
             _load_common_voice_validated_candidates(
                 tsv_path=str(cv_tsv_path),
                 clips_dir=str(cv_clips_path),
+                allowed_clips_tsv=str(cv_allowed_clips_path) if cv_allowed_clips_path.exists() else None,
             )
         )
         logging.info(
